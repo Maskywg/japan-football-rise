@@ -229,20 +229,26 @@ function renderSlide(i, autoplay){
 
 const narrationAudio = document.getElementById('narrationAudio');
 
-function audioFileFor(i){
-  return 'audio/' + String(i+1).padStart(2,'0') + '.mp3';
+function audioCandidatesFor(i){
+  const num = String(i+1).padStart(2,'0');
+  return ['audio/'+num+'.mp3', 'audio/'+num+'.m4a'];
 }
 
 function playNarration(i, text){
   speechSynthesis.cancel();
   narrationAudio.pause();
-  const src = audioFileFor(i);
-  narrationAudio.src = src;
+  const candidates = audioCandidatesFor(i);
+  tryAudioCandidates(candidates, 0, text);
+}
+
+function tryAudioCandidates(candidates, idx, text){
+  if (idx >= candidates.length){ speak(text); return; }
+  narrationAudio.src = candidates[idx];
   narrationAudio.playbackRate = parseFloat(rateRange.value);
   narrationAudio.onended = () => { if (playing) next(); };
-  narrationAudio.onerror = () => { speak(text); };
+  narrationAudio.onerror = () => { tryAudioCandidates(candidates, idx+1, text); };
   const p = narrationAudio.play();
-  if (p && p.catch) p.catch(() => speak(text));
+  if (p && p.catch) p.catch(() => tryAudioCandidates(candidates, idx+1, text));
 }
 
 function speak(text){
