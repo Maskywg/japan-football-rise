@@ -228,6 +228,7 @@ function renderSlide(i, autoplay){
 }
 
 const narrationAudio = document.getElementById('narrationAudio');
+let narrationToken = 0; // 每次切換投影片就遞增，避免舊的 onerror/catch 在新音檔已播放時又誤觸發備援
 
 function audioCandidatesFor(i){
   const num = String(i+1).padStart(2,'0');
@@ -237,18 +238,28 @@ function audioCandidatesFor(i){
 function playNarration(i, text){
   speechSynthesis.cancel();
   narrationAudio.pause();
+  narrationAudio.onended = null;
+  narrationAudio.onerror = null;
+  const myToken = ++narrationToken;
   const candidates = audioCandidatesFor(i);
-  tryAudioCandidates(candidates, 0, text);
+  tryAudioCandidates(candidates, 0, text, myToken);
 }
 
-function tryAudioCandidates(candidates, idx, text){
+function tryAudioCandidates(candidates, idx, text, myToken){
+  if (myToken !== narrationToken) return; // 已經切到別的投影片，放棄這條舊的播放鏈
   if (idx >= candidates.length){ speak(text); return; }
+  let advanced = false;
+  const advance = () => {
+    if (advanced || myToken !== narrationToken) return;
+    advanced = true;
+    tryAudioCandidates(candidates, idx+1, text, myToken);
+  };
   narrationAudio.src = candidates[idx];
   narrationAudio.playbackRate = parseFloat(rateRange.value);
-  narrationAudio.onended = () => { if (playing) next(); };
-  narrationAudio.onerror = () => { tryAudioCandidates(candidates, idx+1, text); };
+  narrationAudio.onended = () => { if (myToken === narrationToken && playing) next(); };
+  narrationAudio.onerror = advance;
   const p = narrationAudio.play();
-  if (p && p.catch) p.catch(() => tryAudioCandidates(candidates, idx+1, text));
+  if (p && p.catch) p.catch(advance);
 }
 
 function speak(text){
@@ -276,6 +287,7 @@ const bgmAudio = document.getElementById('bgmAudio');
 bgmAudio.volume = 0.5;
 
 function stopAll(){
+  narrationToken++;
   speechSynthesis.cancel();
   narrationAudio.pause();
 }
